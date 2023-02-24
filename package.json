@@ -1,0 +1,120 @@
+{
+  "name": "usd-viewer",
+  "version": "0.0.0",
+  "main": "./index.js",
+  "module": "./index.js",
+  "typings": "./index.d.ts",
+  "type": "module",
+  "customElements": "./custom-elements.json",
+  "homepage": "https://github.com/coryrylan/usd-viewer",
+  "keywords": [
+    "web components",
+    "usd",
+    "3d model"
+  ],
+  "license": "MIT",
+  "description": "experimental usd-viewer web component",
+  "scripts": {
+    "ci": "wireit",
+    "start": "wireit",
+    "drafter": "wireit",
+    "drafter:watch": "wireit",
+    "build": "wireit",
+    "build:watch": "wireit",
+    "deploy": "wireit",
+    "clean": "git clean -dfX"
+  },
+  "wireit": {
+    "ci": {
+      "dependencies": [
+        "build",
+        "drafter"
+      ]
+    },
+    "start": {
+      "dependencies": [
+        "build:watch",
+        "drafter:watch"
+      ]
+    },
+    "build": {
+      "command": "bp build && cpy \"wasm/**/*\" dist/lib/wasm",
+      "output": ["dist/lib"],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.css",
+        "wasm/**/*",
+        "blueprint.config.js",
+        "readme.md",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.lib.json"
+      ]
+    },
+    "build:watch": {
+      "command": "bp build --watch",
+      "dependencies": [
+        "build"
+      ],
+      "service": true
+    },
+    "drafter": {
+      "command": "drafter build && cpy \"dist/lib/wasm/**/*\" dist/drafter/wasm && cpy \"usd/**/*\" dist/drafter/usd",
+      "output": ["dist/drafter"],
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "dist/wasm/**/*",
+        "usd/**/*",
+        "src/**/*.examples.js",
+        "wasm/**/*",
+        "usd/**/*",
+        "blueprint.config.js",
+        "package.json"
+      ]
+    },
+    "drafter:watch": {
+      "command": "drafter build --watch",
+      "dependencies": [
+        "drafter"
+      ],
+      "service": true
+    },
+    "deploy": {
+      "command": "firebase deploy --only hosting:usd-viewer"
+    }
+  },
+  "files": [
+    "*"
+  ],
+  "sideEffects": [
+    "./include.js"
+  ],
+  "exports": {
+    "./custom-elements.json": "./custom-elements.json",
+    ".": "./index.js",
+    "./include/*": "./include/*",
+    "./*": "./*/index.js"
+  },
+  "author": {
+    "name": ""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coryrylan/usd-viewer"
+  },
+  "dependencies": {
+    "lit": "^2.6.1",
+    "three": "^0.149.0"
+  },
+  "devDependencies": {
+    "@blueprintui/cli": "^0.1.1",
+    "@blueprintui/drafter": "^0.8.1",
+    "@rollup/plugin-commonjs": "^24.0.1",
+    "@types/three": "^0.149.0",
+    "cpy-cli": "^4.2.0",
+    "typescript": "~4.7.4",
+    "wireit": "^0.9.5"
+  }
+}

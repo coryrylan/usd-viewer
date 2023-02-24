@@ -1,3 +1,8 @@
+.wireit
+.firebase
+dist
+node_modules
+
 # Logs
 logs
 *.log
