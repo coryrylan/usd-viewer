@@ -27,17 +27,61 @@ export function interactive() {
       }
 
       section {
-        display: grid;
-        grid-template-columns: 400px 1fr;
         height: 100vh;
       }
 
       form {
         border-right: 1px solid ButtonBorder;
         padding: 24px;
-        display: flex;
         flex-direction: column;
         gap: 36px;
+        position: absolute;
+        inset: 0 auto 0 0;
+        display: none;
+        background: Canvas;
+        z-index: 99;
+        width: 280px;
+      }
+
+      button {
+        padding: 6px;
+        border: 0;
+        background: ButtonFace;
+        opacity: 0.8;
+        color: inherit;
+        border-radius: 4px;
+        z-index: 99;
+      }
+
+      button[open] {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+      }
+
+      button[close] {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 26px;
+        height: 26px;
+      }
+
+      @media (min-width: 1100px) {
+        section {
+          display: grid;
+          grid-template-columns: 380px 1fr;
+        }
+
+        form {
+          display: flex !important;
+          width: initial;
+          position: initial;
+        }
+
+        button[open] {
+          display: none !important;
+        }
       }
 
       label {
@@ -74,8 +118,10 @@ export function interactive() {
       }
     </style>
 
+    <button open>menu</button>
     <section>
-      <form>
+      <form style="display: none">
+        <button type="button" close aria-label="close">&#x2715;</button>
         <div>
           <h1>usd-viewer</h1>
           <a href="https://github.com/coryrylan/usd-viewer">Github</a>
@@ -127,12 +173,17 @@ export function interactive() {
       import 'usd-viewer/include.js';
       const viewer = document.querySelector('usd-viewer');
       const form = document.querySelector('form');
+      const button = document.querySelector('button[open]');
+      const buttonClose = document.querySelector('button[close]');
 
       form.addEventListener('input', (e) => {
         const values = Object.fromEntries(new FormData(form));
         viewer[e.target.name] = values[e.target.name];
         document.documentElement.style.setProperty('color-scheme', values['dark-theme'] ? 'dark' : 'light');
       });
+
+      button.addEventListener('click', () =>  form.style.display = form.style.display === 'none' ? 'flex' : 'none');
+      buttonClose.addEventListener('click', () => form.style.display = 'none');
     </script>
   `;
 }
