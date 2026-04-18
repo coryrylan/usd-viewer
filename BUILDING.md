@@ -20,6 +20,13 @@ A single-threaded build would:
 - Not use `Atomics.*` operations
 - Not require COOP/COEP headers
 
+> **Note on OpenUSD v26.03:** The official Pixar WASM build target does **not** provide a
+> single-threaded configuration out of the box. `-pthread` is hardcoded in
+> `build_scripts/build_usd.py` (lines 84-85), oneTBB is a mandatory requirement
+> (line 1053: `raise RuntimeError("OneTBB is required for WebAssembly builds.")`), and
+> `BUILDING.md` hardcodes `-pthread` in the WebAssembly CMake flags. The patches below
+> apply whether you start from the Autodesk fork or OpenUSD v26.03.
+
 ## Prerequisites
 
 | Tool | Version | Purpose |
@@ -55,27 +62,40 @@ cd emsdk
 source ./emsdk_env.sh
 ```
 
-### 2. Modify Build Flags
+### 2. Patch OpenUSD Build Scripts
 
-In `build_scripts/build_usd.py` (or the relevant CMake configuration), locate the WASM
-target flags and make these changes:
+Confirmed from the v26.03 source tree, the official build does **not** expose a
+single-threaded WASM option. The following specific patches are required:
 
-**Remove:**
-- `-pthread` from both compile and link flags
-- `-s USE_PTHREADS=1`
-- `-s PTHREAD_POOL_SIZE=N`
-- `-s SHARED_MEMORY=1`
-- `-s PROXY_TO_PTHREAD`
+**Patch `build_scripts/build_usd.py` lines 84-85** — remove `-pthread`:
 
-**Keep/add:**
-- `-s ALLOW_MEMORY_GROWTH=1`
-- `-s MODULARIZE=1`
-- `-s EXPORT_ES6=0`
+```diff
+- compileFlags = '-pthread --use-port=zlib'
+- linkerFlags  = '-pthread'
++ compileFlags = '--use-port=zlib'
++ linkerFlags  = ''
+```
+
+**Patch `build_scripts/build_usd.py` line 1053** — remove the oneTBB requirement
+or replace it with a no-TBB code path:
+
+```diff
+- raise RuntimeError("OneTBB is required for WebAssembly builds.")
++ # Single-threaded WASM build: allow skipping TBB or use a stub
+```
+
+**Patch `BUILDING.md` lines 82-103** (or pass overrides on the CMake command line)
+— remove `-pthread` from `CMAKE_CXX_FLAGS`, `CMAKE_C_FLAGS`, and
+`CMAKE_EXE_LINKER_FLAGS` in the WebAssembly section.
+
+**Patch `cmake/defaults/Options.cmake` lines 254-264** — add a pthread toggle
+inside the existing `if (EMSCRIPTEN)` block that is honored downstream.
 
 ### 3. Patch oneTBB for Single-Threaded WASM
 
-USD depends on oneTBB for task-based parallelism. Newer oneTBB versions force `-pthread`,
-which is the primary blocker. See [oneTBB issue #1280](https://github.com/uxlfoundation/oneTBB/issues/1280).
+This is the hardest blocker. USD depends on oneTBB for task-based parallelism, and
+newer oneTBB versions force `-pthread`. See
+[oneTBB issue #1280](https://github.com/uxlfoundation/oneTBB/issues/1280).
 
 Options:
 - **Patch oneTBB CMake**: Remove the `-pthread` requirement for Emscripten targets in
@@ -85,13 +105,29 @@ Options:
 - **Set `PXR_WORK_THREAD_LIMIT=1`**: Forces USD's work system (`WorkDispatcher`,
   `WorkParallelForN`) to execute all tasks sequentially on the calling thread
 
-### 4. Build
+### 4. Emscripten Flags
+
+After the patches above, the resulting Emscripten build should:
+
+**Not pass:**
+- `-pthread`
+- `-s USE_PTHREADS=1`
+- `-s PTHREAD_POOL_SIZE=N`
+- `-s SHARED_MEMORY=1`
+- `-s PROXY_TO_PTHREAD`
+
+**Pass:**
+- `-s ALLOW_MEMORY_GROWTH=1`
+- `-s MODULARIZE=1`
+- `-s EXPORT_ES6=0`
+
+### 5. Build
 
 ```bash
 python3 ./build_scripts/build_usd.py --build-target wasm ../build_dir
 ```
 
-### 5. Optimize
+### 6. Optimize
 
 ```bash
 wasm-opt -Oz \
@@ -102,7 +138,7 @@ wasm-opt -Oz \
 
 Note: Do **not** pass `--enable-threads` (unlike the pthreads build).
 
-### 6. Copy Output to usd-viewer
+### 7. Copy Output to usd-viewer
 
 ```bash
 cp ../build_dir/bin/emHdBindings.wasm  ./wasm/
@@ -111,7 +147,7 @@ cp ../build_dir/bin/emHdBindings.data  ./wasm/
 rm ./wasm/emHdBindings.worker.js  # No longer generated
 ```
 
-### 7. Update Configuration
+### 8. Update Configuration
 
 Remove COOP/COEP headers from:
 - `firebase.json` (lines 12-24)
