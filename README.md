@@ -61,6 +61,18 @@ To change the default path (`./wasm`) of the Wasm resources add the following me
 <meta name="usd-viewer:wasm" content="custom-path/wasm" />
 ```
 
+### Rebuilding WASM Files
+
+The WASM files in `wasm/` are built from the Autodesk USD fork. To rebuild them
+(for example when picking up upstream fixes):
+
+```shell
+npm run build:wasm        # Docker-based reproducible build (recommended)
+npm run build:wasm:local  # Local build using emsdk
+```
+
+See [BUILDING.md](./BUILDING.md) for details, version pinning, and troubleshooting.
+
 ## Usage
 
 ```html

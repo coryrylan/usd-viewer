@@ -22,7 +22,10 @@
     "build": "wireit",
     "build:watch": "wireit",
     "deploy": "wireit",
-    "clean": "git clean -dfX"
+    "clean": "git clean -dfX",
+    "build:wasm": "./scripts/build-wasm.sh docker",
+    "build:wasm:local": "./scripts/build-wasm.sh local",
+    "build:wasm:clean": "./scripts/build-wasm.sh clean"
   },
   "wireit": {
     "ci": {

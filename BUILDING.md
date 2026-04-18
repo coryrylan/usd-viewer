@@ -1,199 +1,167 @@
-# Building WASM Without Pthreads (Eliminating COOP/COEP Headers)
+# Building the WASM Files
 
-The pre-built WASM files in `wasm/` were compiled from
-[Autodesk's USD fork](https://github.com/autodesk-forks/USD/tree/gh-pages/usd_for_web_demos)
-with Emscripten pthreads enabled. This makes `SharedArrayBuffer` (and therefore COOP/COEP
-response headers) mandatory.
+The `wasm/` directory contains pre-built WebAssembly artifacts (`emHdBindings.wasm`,
+`emHdBindings.js`, `emHdBindings.data`, `emHdBindings.worker.js`) that are needed at
+runtime by the `usd-viewer` web component. This document explains how to rebuild them.
 
-To eliminate the header requirement entirely, the WASM must be recompiled without pthreads.
+## Which Source Should I Use?
 
-## Background
+There are two separate WASM-capable forks of USD, and they are **not interchangeable**:
 
-The binary declares shared memory at the WebAssembly level (`flags=0x03` on memory import).
-Browsers enforce that shared WASM memory requires `SharedArrayBuffer`, which is only available
-on cross-origin isolated pages. The JS glue code (`emHdBindings.js`) additionally validates
-`SharedArrayBuffer` at runtime and throws `"bad memory"` if unavailable.
+| Source | Ships `hdEmscripten` (Hydra JS bindings) | Notes |
+|--------|-------------------------------------------|-------|
+| [PixarAnimationStudios/OpenUSD](https://github.com/PixarAnimationStudios/OpenUSD) (official) | **No** | Official WASM target is data-layer only; `-DPXR_BUILD_IMAGING=OFF` is mandatory. No `emHdBindings.js` / `HdWebSyncDriver` / `getUsdModule()`. |
+| [autodesk-forks/USD @ `adsk/feature/wasm`](https://github.com/autodesk-forks/USD/tree/adsk/feature/wasm) | **Yes** | Contains `pxr/usdImaging/hdEmscripten` which produces the `emHdBindings.*` files usd-viewer depends on. |
 
-A single-threaded build would:
-- Use standard `ArrayBuffer` instead of `SharedArrayBuffer`
-- Not generate `emHdBindings.worker.js`
-- Not use `Atomics.*` operations
-- Not require COOP/COEP headers
+**usd-viewer's rendering pipeline (`src/element.ts` → `new RenderDelegateInterface(...).driver.Draw()`)
+depends on the Autodesk fork's Hydra JS bindings.** There is currently no upstream replacement —
+Pixar has not accepted an `hdEmscripten` equivalent into the official repo.
 
-> **Note on OpenUSD v26.03:** The official Pixar WASM build target does **not** provide a
-> single-threaded configuration out of the box. `-pthread` is hardcoded in
-> `build_scripts/build_usd.py` (lines 84-85), oneTBB is a mandatory requirement
-> (line 1053: `raise RuntimeError("OneTBB is required for WebAssembly builds.")`), and
-> `BUILDING.md` hardcodes `-pthread` in the WebAssembly CMake flags. The patches below
-> apply whether you start from the Autodesk fork or OpenUSD v26.03.
+Until that changes, **rebuild from the Autodesk fork**. The script below follows the
+build commands and versions documented in the fork's own `Dockerfile` and
+`pxr/usdImaging/hdEmscripten/README.md`, which are in turn modeled on the official
+OpenUSD `build_usd.py --build-target wasm` convention.
+
+## Quick Start
+
+### Docker (recommended)
+
+Reproducible build that mirrors the upstream Dockerfile (Ubuntu 23.04, emsdk 4.0.8,
+CMake 3.27.9):
+
+```bash
+npm run build:wasm
+# equivalent to: ./scripts/build-wasm.sh docker
+```
+
+The script will:
+1. Clone `autodesk-forks/USD` at the `adsk/feature/wasm` branch into `.build-wasm/USD`
+2. Build the image `usd-viewer-wasm:local` from the fork's own `Dockerfile`
+3. Extract the four `emHdBindings.*` files from the built image
+4. Copy them into `wasm/`
+
+### Local
+
+If you already have Emscripten SDK installed (or prefer a native build):
+
+```bash
+npm run build:wasm:local
+# equivalent to: ./scripts/build-wasm.sh local
+```
+
+This installs `emsdk` 4.0.8 into `.build-wasm/emsdk` (if not already present),
+clones the fork, then runs:
+
+```bash
+python3 ./build_scripts/build_usd.py -v --build-target wasm --js-bindings .build-wasm/USD_emscripten
+```
+
+### Clean
+
+Remove the working directory:
+
+```bash
+./scripts/build-wasm.sh clean
+```
+
+## Pinning for Reproducibility
+
+By default the script follows the moving `adsk/feature/wasm` branch. For reproducible
+builds, pin to a specific commit SHA via the environment variable:
+
+```bash
+USD_REPO_REF=abc1234 npm run build:wasm
+```
+
+After a successful build, record the commit hash printed by the script
+(`USD HEAD: ...`) in your release notes so the artifact can be reproduced later.
 
 ## Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) | 3.x+ | WASM compiler toolchain |
-| [CMake](https://cmake.org/) | 3.14+ | Build configuration |
-| Python | 3.x | Build script runner |
-| RAM | ~8 GB | Compilation is memory-intensive |
+### Docker mode
+- Docker 20+
+- ~8 GB free disk space for the image
+- ~8 GB RAM during the build
 
-## Source
+### Local mode
+- Python 3.9+
+- CMake 3.27+ (pinned to 3.27.9 in upstream Dockerfile)
+- Git
+- ~8 GB free disk space
+- ~8 GB RAM during the build
+- The script installs `emsdk` 4.0.8 automatically
 
-As of OpenUSD v26.03 (March 2026), Pixar officially supports WASM compilation:
+## What the Build Produces
 
-```bash
-git clone -b v26.03 https://github.com/PixarAnimationStudios/OpenUSD.git
+After a successful run, `wasm/` will contain:
+
+| File | Purpose |
+|------|---------|
+| `emHdBindings.wasm` | Compiled WebAssembly binary |
+| `emHdBindings.js` | Emscripten JS glue, exposes `getUsdModule()` |
+| `emHdBindings.data` | Preloaded virtual filesystem data (`plugInfo.json` etc.) |
+| `emHdBindings.worker.js` | Pthread worker (generated because `-pthread` is in the flags) |
+
+The JS API is `window.getUsdModule(null, wasmDir)` — see `src/utils.ts` for the loader.
+The linker options that produce this shape are in the fork's
+`pxr/usdImaging/hdEmscripten/CMakeLists.txt`:
+
+```cmake
+target_link_options(emHdBindings PRIVATE
+  "SHELL:-sEXPORT_NAME=getUsdModule -sMODULARIZE=1 -lembind -sFORCE_FILESYSTEM=1")
 ```
 
-Alternatively, use the Autodesk fork (the original source of the current WASM files):
+## About COOP/COEP Headers
 
-```bash
-git clone -b release https://github.com/autodesk-forks/USD.git
+Because the upstream build uses `-pthread`, the resulting binary requires
+`SharedArrayBuffer` and therefore requires these response headers:
+
+```json
+"Cross-Origin-Embedder-Policy": "require-corp"
+"Cross-Origin-Opener-Policy": "same-origin"
 ```
 
-## Build Steps
+The WASM binary declares shared memory at the binary level (`flags=0x03` on its memory
+import), which is a hard browser constraint that cannot be bypassed in JavaScript.
 
-### 1. Install Emscripten
+To eliminate the header requirement entirely, the WASM would need to be recompiled
+without pthreads — a non-trivial effort because:
 
-```bash
-git clone https://github.com/emscripten-core/emsdk.git
-cd emsdk
-./emsdk install latest
-./emsdk activate latest
-source ./emsdk_env.sh
-```
+1. `build_usd.py` hardcodes `-pthread` in its compile/link flags
+2. oneTBB (a mandatory USD dependency) forces `-pthread` on Emscripten targets
+   ([oneTBB #1280](https://github.com/uxlfoundation/oneTBB/issues/1280))
+3. Removing `-pthread` requires patching both `build_usd.py` and oneTBB's CMake
+4. USD's work system must be configured with `PXR_WORK_THREAD_LIMIT=1` at runtime
 
-### 2. Patch OpenUSD Build Scripts
+See the "Header Alternatives" section of [README.md](./README.md#why-are-these-headers-required)
+for the `coi-serviceworker` approach, which injects the headers client-side without
+requiring server configuration.
 
-Confirmed from the v26.03 source tree, the official build does **not** expose a
-single-threaded WASM option. The following specific patches are required:
+## Troubleshooting
 
-**Patch `build_scripts/build_usd.py` lines 84-85** — remove `-pthread`:
+**`OneTBB is required for WebAssembly builds`**
+This is expected. The script runs with `--build-target wasm`, which auto-enables
+`--build-onetbb` and downloads oneTBB. If you see this error outside of the script,
+add `--build-onetbb` or let the flag be set implicitly by `--build-target wasm`.
 
-```diff
-- compileFlags = '-pthread --use-port=zlib'
-- linkerFlags  = '-pthread'
-+ compileFlags = '--use-port=zlib'
-+ linkerFlags  = ''
-```
+**Out of memory during compilation**
+Lower parallelism by editing `scripts/build-wasm.sh` to pass `-j 2` to `emmake`, or
+increase available RAM.
 
-**Patch `build_scripts/build_usd.py` line 1053** — remove the oneTBB requirement
-or replace it with a no-TBB code path:
+**Docker build fails on M-series Macs**
+The upstream Dockerfile uses `FROM ubuntu:23.04`. On Apple Silicon, prefix with
+`DOCKER_DEFAULT_PLATFORM=linux/amd64` before running the script. Emulation will be
+slower but functional.
 
-```diff
-- raise RuntimeError("OneTBB is required for WebAssembly builds.")
-+ # Single-threaded WASM build: allow skipping TBB or use a stub
-```
-
-**Patch `BUILDING.md` lines 82-103** (or pass overrides on the CMake command line)
-— remove `-pthread` from `CMAKE_CXX_FLAGS`, `CMAKE_C_FLAGS`, and
-`CMAKE_EXE_LINKER_FLAGS` in the WebAssembly section.
-
-**Patch `cmake/defaults/Options.cmake` lines 254-264** — add a pthread toggle
-inside the existing `if (EMSCRIPTEN)` block that is honored downstream.
-
-### 3. Patch oneTBB for Single-Threaded WASM
-
-This is the hardest blocker. USD depends on oneTBB for task-based parallelism, and
-newer oneTBB versions force `-pthread`. See
-[oneTBB issue #1280](https://github.com/uxlfoundation/oneTBB/issues/1280).
-
-Options:
-- **Patch oneTBB CMake**: Remove the `-pthread` requirement for Emscripten targets in
-  oneTBB's `CMakeLists.txt`
-- **Use an older TBB version**: Older versions allowed compilation without `-pthread`,
-  falling back to a single-threaded internal scheduler
-- **Set `PXR_WORK_THREAD_LIMIT=1`**: Forces USD's work system (`WorkDispatcher`,
-  `WorkParallelForN`) to execute all tasks sequentially on the calling thread
-
-### 4. Emscripten Flags
-
-After the patches above, the resulting Emscripten build should:
-
-**Not pass:**
-- `-pthread`
-- `-s USE_PTHREADS=1`
-- `-s PTHREAD_POOL_SIZE=N`
-- `-s SHARED_MEMORY=1`
-- `-s PROXY_TO_PTHREAD`
-
-**Pass:**
-- `-s ALLOW_MEMORY_GROWTH=1`
-- `-s MODULARIZE=1`
-- `-s EXPORT_ES6=0`
-
-### 5. Build
-
-```bash
-python3 ./build_scripts/build_usd.py --build-target wasm ../build_dir
-```
-
-### 6. Optimize
-
-```bash
-wasm-opt -Oz \
-  -o ../build_dir/bin/emHdBindings.wasm \
-  ../build_dir/bin/emHdBindings.wasm \
-  --enable-bulk-memory
-```
-
-Note: Do **not** pass `--enable-threads` (unlike the pthreads build).
-
-### 7. Copy Output to usd-viewer
-
-```bash
-cp ../build_dir/bin/emHdBindings.wasm  ./wasm/
-cp ../build_dir/bin/emHdBindings.js    ./wasm/
-cp ../build_dir/bin/emHdBindings.data  ./wasm/
-rm ./wasm/emHdBindings.worker.js  # No longer generated
-```
-
-### 8. Update Configuration
-
-Remove COOP/COEP headers from:
-- `firebase.json` (lines 12-24)
-- `blueprint.config.js` (lines 15-18, `responseHeaders` block)
-
-## Verification
-
-1. Confirm the WASM binary no longer declares shared memory:
-   ```bash
-   wasm-objdump -h emHdBindings.wasm | grep -i shared
-   # Should show no shared flag
-   ```
-
-2. Confirm the JS glue has no `SharedArrayBuffer` references:
-   ```bash
-   grep -c "SharedArrayBuffer" wasm/emHdBindings.js
-   # Should be 0
-   ```
-
-3. Serve without COOP/COEP headers and verify in browser:
-   ```javascript
-   console.log(crossOriginIsolated);  // false — and that's OK now
-   ```
-
-4. Load a sample `.usdz` file and verify rendering works.
-
-5. Compare rendering output and load times against the pthreads build.
-
-## Risks
-
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| oneTBB refuses to compile without pthreads | High | Patch CMake or use older version |
-| USD code paths assume threads exist | Medium | `PXR_WORK_THREAD_LIMIT=1` handles most cases |
-| Performance degradation | Medium | USD parsing becomes sequential; Three.js rendering is unaffected |
-| Stack overflow from recursive task dispatch | Low | Unlikely for typical USD scenes |
-
-## Known Build Issue
-
-The build can fail due to comments in `pxr/base/arch/hints.h` (lines 1-26).
-Workaround: remove all comments from those lines.
+**Artifact mismatch between Docker and local builds**
+emsdk 4.0.8 is pinned in both paths, but local builds inherit the host's CMake
+and compiler versions. Prefer the Docker path for release artifacts.
 
 ## References
 
-- [Emscripten Pthreads Documentation](https://emscripten.org/docs/porting/pthreads.html)
-- [OpenUSD Work/Multi-threaded Dispatch](https://openusd.org/dev/api/work_page_front.html)
-- [OpenUSD Threading Model](https://openusd.org/dev/api/_usd__page__multi_threading.html)
-- [oneTBB WASM Support](https://github.com/uxlfoundation/oneTBB/blob/master/WASM_Support.md)
-- [Using WebAssembly threads from C, C++ and Rust](https://web.dev/articles/webassembly-threads)
+- Autodesk fork, `adsk/feature/wasm` branch: https://github.com/autodesk-forks/USD/tree/adsk/feature/wasm
+- `hdEmscripten` README: https://github.com/autodesk-forks/USD/blob/adsk/feature/wasm/pxr/usdImaging/hdEmscripten/README.md
+- `hdEmscripten` CMakeLists: https://github.com/autodesk-forks/USD/blob/adsk/feature/wasm/pxr/usdImaging/hdEmscripten/CMakeLists.txt
+- Upstream Dockerfile: https://github.com/autodesk-forks/USD/blob/adsk/feature/wasm/Dockerfile
+- Official OpenUSD WebAssembly build docs (data-layer only): https://github.com/PixarAnimationStudios/OpenUSD#webassembly
+- Emscripten toolchain: https://emscripten.org/docs/getting_started/downloads.html

@@ -1,5 +1,6 @@
 .wireit
 .firebase
+.build-wasm
 dist
 node_modules
 
