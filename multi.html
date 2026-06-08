@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" nve-theme="root dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="usd-viewer:wasm" content="wasm" />
+    <title>usd-viewer — multiple</title>
+  </head>
+  <body>
+    <main class="multi">
+      <usd-viewer src="./usd/ingenuity.usdz" alt="Ingenuity Mars Helicopter" max-distance="2" auto-rotate auto-rotate-speed="1"></usd-viewer>
+      <usd-viewer src="./usd/perseverance.usdz" alt="Perseverance Mars Rover" auto-rotate auto-rotate-speed="1"></usd-viewer>
+      <usd-viewer src="./usd/cassini.usdz" alt="Cassini Saturn Orbiter" auto-rotate auto-rotate-speed="1"></usd-viewer>
+      <usd-viewer src="./usd/bell-x1.usdz" alt="Bell X1" auto-rotate auto-rotate-speed="1"></usd-viewer>
+    </main>
+    <script type="module" src="/demo/multi.ts"></script>
+  </body>
+</html>

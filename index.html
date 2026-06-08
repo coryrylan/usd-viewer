@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" nve-theme="root dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="usd-viewer:wasm" content="wasm" />
+    <link rel="prefetch" href="usd/perseverance.usdz" />
+    <title>usd-viewer — interactive</title>
+  </head>
+  <body>
+    <nve-page>
+      <nve-page-header slot="header">
+        <nve-icon-button
+          slot="prefix"
+          size="sm"
+          icon-name="menu"
+          commandfor="settings-panel"
+          command="--toggle"
+          aria-label="toggle settings"
+          container="flat"
+        ></nve-icon-button>
+        <h1 slot="prefix" nve-text="heading">usd-viewer</h1>
+        <nve-button container="flat"><a href="/" nve-text="body">Interactive</a></nve-button>
+        <nve-button container="flat"><a href="/multi.html" nve-text="body">Multiple</a></nve-button>
+        <nve-button container="flat"><a href="/single.html" nve-text="body" aria-current="page">Single</a></nve-button>
+        <a slot="suffix" href="https://github.com/coryrylan/usd-viewer" nve-text="body">GitHub</a>
+        <a slot="suffix" href="https://www.npmjs.com/package/usd-viewer" nve-text="body">NPM</a>
+      </nve-page-header>
+
+      <nve-page-panel slot="left" size="sm" id="settings-panel">
+        <nve-page-panel-content>
+          <form id="controls" nve-layout="column gap:lg">
+            <nve-select>
+              <label>Model</label>
+              <select name="src">
+                <option value="./usd/perseverance.usdz">Perseverance Mars Rover</option>
+                <option value="./usd/ingenuity.usdz">Ingenuity Mars Helicopter</option>
+                <option value="./usd/cassini.usdz">Cassini Saturn Orbiter</option>
+                <option value="./usd/bell-x1.usdz">Bell X1</option>
+              </select>
+            </nve-select>
+
+            <nve-range>
+              <label>Zoom</label>
+              <input type="range" name="zoom" min="0.5" max="1.5" value="1" step="0.01" />
+            </nve-range>
+
+            <nve-range>
+              <label>Auto-rotate speed</label>
+              <input type="range" name="autoRotateSpeed" min="1" max="5" value="1" step="1" />
+            </nve-range>
+
+            <nve-switch>
+              <label>Auto rotate</label>
+              <input type="checkbox" name="autoRotate" checked />
+            </nve-switch>
+
+            <nve-switch>
+              <label>File name</label>
+              <input type="checkbox" name="fileName" checked />
+            </nve-switch>
+
+            <nve-switch>
+              <label>Dark theme</label>
+              <input type="checkbox" name="darkTheme" checked />
+            </nve-switch>
+
+            <nve-input>
+              <label>Min distance (zoom)</label>
+              <input type="number" name="minDistance" value="1" step="0.1" />
+            </nve-input>
+
+            <nve-input>
+              <label>Max distance (zoom)</label>
+              <input type="number" name="maxDistance" value="2" step="0.1" />
+            </nve-input>
+          </form>
+        </nve-page-panel-content>
+      </nve-page-panel>
+
+      <main>
+        <usd-viewer
+          id="viewer"
+          src="./usd/perseverance.usdz"
+          alt="Perseverance Mars Rover"
+          file-name
+          auto-rotate
+          auto-rotate-speed="1"
+        ></usd-viewer>
+      </main>
+    </nve-page>
+
+    <script type="module" src="/demo/index.ts"></script>
+  </body>
+</html>

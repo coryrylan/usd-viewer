@@ -5,7 +5,7 @@
   "module": "./index.js",
   "typings": "./index.d.ts",
   "type": "module",
-  "customElements": "./custom-elements.json",
+  "customElements": "dist/lib/custom-elements.json",
   "homepage": "https://github.com/coryrylan/usd-viewer",
   "keywords": [
     "web components",
@@ -15,84 +15,24 @@
   "license": "MIT",
   "description": "experimental usd-viewer web component",
   "scripts": {
-    "ci": "wireit",
-    "start": "wireit",
-    "drafter": "wireit",
-    "drafter:watch": "wireit",
-    "build": "wireit",
-    "build:watch": "wireit",
-    "deploy": "wireit",
+    "dev": "vite",
+    "build": "pnpm run build:app && pnpm run build:lib",
+    "build:lib": "vite build --config vite.config.lib.ts && pnpm run analyze",
+    "build:app": "vite build",
+    "analyze": "cem analyze --litelement --globs \"src/element.ts\" --outdir dist/lib",
+    "preview": "vite preview",
+    "deploy": "firebase deploy --only hosting:usd-viewer",
     "clean": "git clean -dfX",
     "build:wasm": "./scripts/build-wasm.sh docker",
     "build:wasm:local": "./scripts/build-wasm.sh local",
     "build:wasm:clean": "./scripts/build-wasm.sh clean"
   },
-  "wireit": {
-    "ci": {
-      "dependencies": [
-        "build",
-        "drafter"
-      ]
-    },
-    "start": {
-      "dependencies": [
-        "build:watch",
-        "drafter:watch"
-      ]
-    },
-    "build": {
-      "command": "bp build && cpy \"wasm/**/*\" dist/lib/wasm",
-      "output": ["dist/lib"],
-      "files": [
-        "src/**/*.ts",
-        "src/**/*.css",
-        "wasm/**/*",
-        "blueprint.config.js",
-        "readme.md",
-        "package.json",
-        "tsconfig.json",
-        "tsconfig.lib.json"
-      ]
-    },
-    "build:watch": {
-      "command": "bp build --watch",
-      "dependencies": [
-        "build"
-      ],
-      "service": true
-    },
-    "drafter": {
-      "command": "drafter build && cpy \"dist/lib/wasm/**/*\" dist/drafter/wasm && cpy \"usd/**/*\" dist/drafter/usd",
-      "output": ["dist/drafter"],
-      "dependencies": [
-        "build"
-      ],
-      "files": [
-        "dist/wasm/**/*",
-        "usd/**/*",
-        "src/**/*.examples.js",
-        "wasm/**/*",
-        "usd/**/*",
-        "blueprint.config.js",
-        "package.json"
-      ]
-    },
-    "drafter:watch": {
-      "command": "drafter build --watch",
-      "dependencies": [
-        "drafter"
-      ],
-      "service": true
-    },
-    "deploy": {
-      "command": "firebase deploy --only hosting:usd-viewer"
-    }
-  },
   "files": [
     "*"
   ],
   "sideEffects": [
-    "./include.js"
+    "./include.js",
+    "./src/include.ts"
   ],
   "exports": {
     "./custom-elements.json": "./custom-elements.json",
@@ -112,12 +52,14 @@
     "three": "^0.149.0"
   },
   "devDependencies": {
-    "@blueprintui/cli": "^0.1.1",
-    "@blueprintui/drafter": "^0.8.1",
-    "@rollup/plugin-commonjs": "^24.0.1",
+    "@custom-elements-manifest/analyzer": "0.11.0",
+    "@nvidia-elements/core": "^2.0.0",
+    "@nvidia-elements/styles": "^2.0.0",
+    "@nvidia-elements/themes": "^2.0.0",
     "@types/three": "^0.149.0",
-    "cpy-cli": "^4.2.0",
-    "typescript": "~4.7.4",
-    "wireit": "^0.9.5"
+    "typescript": "^5.6.3",
+    "vite": "^8.0.16",
+    "vite-plugin-dts": "^5.0.2",
+    "vite-plugin-static-copy": "^4.1.1"
   }
 }

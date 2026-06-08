@@ -1,0 +1,7 @@
+allowBuilds:
+  rs-module-lexer: true
+minimumReleaseAgeExclude:
+  - '@nvidia-elements/core@2.0.0'
+  - '@nvidia-elements/forms@2.0.0'
+  - '@nvidia-elements/styles@2.0.0'
+  - '@nvidia-elements/themes@2.0.0'

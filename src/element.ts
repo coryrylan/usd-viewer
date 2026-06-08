@@ -1,12 +1,12 @@
 import { Scene, Group, Vector3, Box3, PerspectiveCamera, WebGLRenderer, CineonToneMapping, VSMShadowMap, PMREMGenerator } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { LitElement, html, PropertyValues } from 'lit';
+import { LitElement, html, unsafeCSS, PropertyValues } from 'lit';
 import { state } from 'lit/decorators/state.js';
 import { property } from 'lit/decorators/property.js';
 import { RenderDelegateInterface } from './render-delegate.js';
 import { loadWasmUSD, fetchArrayBuffer } from './utils.js';
-import styles from './element.css' assert { type: 'css' };
+import styles from './element.css?inline';
 
 const USD = await loadWasmUSD(document.querySelector<HTMLMetaElement>('meta[name="usd-viewer:wasm"]')?.content ?? 'wasm');
 
@@ -44,7 +44,7 @@ export class USDViewer extends LitElement {
   #loading = false;
   #internals = this.attachInternals();
   
-  static styles = [styles];
+  static styles = [unsafeCSS(styles)];
 
   render() {
     return html`
@@ -58,10 +58,10 @@ export class USDViewer extends LitElement {
     await this.updateComplete;
     (this.#internals as any).role = 'img';
     this.#initializeDOMRect();
-    this.#intializeCamera();
-    this.#intitializeRender();
-    this.#intializeScene();
-    this.#intializeControls();
+    this.#initializeCamera();
+    this.#initializeRender();
+    this.#initializeScene();
+    this.#initializeControls();
     await this.#loadFile();
     this.#updateControls();
     this.#updateCamera();
@@ -86,12 +86,12 @@ export class USDViewer extends LitElement {
     this.#DOMRect = this.getBoundingClientRect();
   }
 
-  #intializeScene() {
+  #initializeScene() {
     this.#scene = new Scene();
     this.#scene.environment = new PMREMGenerator(this.#renderer).fromScene(new RoomEnvironment()).texture;
   }
 
-  #intializeCamera() {
+  #initializeCamera() {
     this.#camera = new PerspectiveCamera(27, this.#DOMRect.width / this.#DOMRect.height, 1, 3500);
   }
 
@@ -117,9 +117,9 @@ export class USDViewer extends LitElement {
     this.#camera.updateProjectionMatrix();
   }
 
-  #intitializeRender() {
+  #initializeRender() {
     this.#renderer = new WebGLRenderer({ antialias: true, alpha: true });
-    this.#renderer.setPixelRatio(this.#DOMRect.width / this.#DOMRect.height);
+    this.#renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.#renderer.setSize(this.#DOMRect.width, this.#DOMRect.height);
     this.#renderer.toneMapping = CineonToneMapping;
     this.#renderer.toneMappingExposure = 2;
@@ -127,7 +127,7 @@ export class USDViewer extends LitElement {
     this.#renderer.shadowMap.type = VSMShadowMap;
   }
 
-  #intializeControls() {
+  #initializeControls() {
     this.#controls = new OrbitControls(this.#camera, this.#renderer.domElement);
     this.#controls.update();
   }

@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/usd-viewer?color=%2334D058&label=usd-viewer)](https://www.npmjs.com/package/usd-viewer)
 
-### [usd-viewer demo](https://usd-viewer.web.app/usd-viewer-interactive-iframe)
+### [usd-viewer demo](https://usd-viewer.web.app/interactive)
 
 **Experimental** Web Component for rendering USDZ 3d format. Built on the experimental work and efforts of [github.com/autodesk-forks/USD/tree/release](https://github.com/autodesk-forks/USD/tree/release)
 
@@ -96,6 +96,25 @@ See [BUILDING.md](./BUILDING.md) for details, version pinning, and troubleshooti
 | `minDistance`     | `min-distance`      | number  | minimum zoom distance of model                 |
 | `maxDistance`     | `max-distance`      | number  | maximum zoom distance of model                 |
 | `zoom`            | `zoom`              | number  | default zoom level of camera relative to model |
+
+## Development
+
+This project uses [pnpm](https://pnpm.io) and [Vite](https://vite.dev). The demo
+site is built with [NVIDIA Elements](https://nvidia.github.io/elements/) web
+components for its UI.
+
+```shell
+pnpm install        # install dependencies
+pnpm dev            # start the Vite dev server (basic / interactive / multiple examples)
+pnpm build          # build the demo site (dist) and the publishable library (dist/lib)
+pnpm preview        # preview the production build
+pnpm deploy         # deploy the demo site to Firebase hosting
+```
+
+The demo pages live at the project root (`index.html`, `single.html`,
+`multi.html`) with their entry points under `demo/`. The `interactive` example
+uses `nve-page`, `nve-page-panel`, and Elements form controls for its control
+panel.
 
 ## Licensing
 

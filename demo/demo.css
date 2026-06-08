@@ -1,0 +1,28 @@
+/* Minimal, non-component glue: size the page shell and the <usd-viewer> canvas.
+   All visual styling comes from NVIDIA Elements themes and components. */
+html,
+body {
+  height: 100%;
+}
+
+body > main {
+  height: 100%;
+}
+
+usd-viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 2x2 gallery for the multi-viewer example */
+main.multi {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
+}
+
+main.multi usd-viewer {
+  outline: 1px solid var(--nve-sys-color-border-subtle, #ccc);
+}
