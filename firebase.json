@@ -1,13 +1,14 @@
 {
   "hosting": {
     "site": "usd-viewer",
-    "public": "dist/drafter",
+    "public": "dist",
     "cleanUrls": true,
     "trailingSlash": false,
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "lib/**"
     ],
     "headers": [
       {

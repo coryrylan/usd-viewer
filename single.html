@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" nve-theme="root dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="usd-viewer:wasm" content="wasm" />
+    <link rel="prefetch" href="usd/perseverance.usdz" />
+    <title>usd-viewer</title>
+  </head>
+  <body>
+    <main>
+      <usd-viewer
+        src="./usd/perseverance.usdz"
+        alt="Perseverance Mars Rover"
+        file-name
+        auto-rotate
+        auto-rotate-speed="1"
+      ></usd-viewer>
+    </main>
+    <script type="module" src="/demo/single.ts"></script>
+  </body>
+</html>
