@@ -25,6 +25,7 @@
     "clean": "git clean -dfX",
     "build:wasm": "./scripts/build-wasm.sh docker",
     "build:wasm:local": "./scripts/build-wasm.sh local",
+    "build:wasm:st": "VARIANTS=st ./scripts/build-wasm.sh docker",
     "build:wasm:clean": "./scripts/build-wasm.sh clean"
   },
   "files": [
