@@ -1,8 +1,15 @@
 # Building the WASM Files
 
-The `wasm/` directory contains pre-built WebAssembly artifacts (`emHdBindings.wasm`,
-`emHdBindings.js`, `emHdBindings.data`, `emHdBindings.worker.js`) that are needed at
-runtime by the `usd-viewer` web component. This document explains how to rebuild them.
+The `wasm/` directory contains pre-built WebAssembly artifacts that are needed at
+runtime by the `usd-viewer` web component, in two variants:
+
+- **Threaded** (`wasm/emHdBindings.{wasm,js,data,worker.js}`) — Emscripten pthreads
+  build; fastest, but requires COOP/COEP headers (cross-origin isolation).
+- **Single-threaded** (`wasm/st/emHdBindings.{wasm,js,data}`) — no pthreads, no
+  `SharedArrayBuffer`, runs without any special headers on static hosts/CDNs.
+
+The loader in `src/utils.ts` picks the variant at runtime based on
+`SharedArrayBuffer` availability. This document explains how to rebuild both.
 
 ## Which Source Should I Use?
 
@@ -36,9 +43,19 @@ npm run build:wasm
 
 The script will:
 1. Clone `autodesk-forks/USD` at the `adsk/feature/wasm` branch into `.build-wasm/USD`
-2. Build the image `usd-viewer-wasm:local` from the fork's own `Dockerfile`
-3. Extract the four `emHdBindings.*` files from the built image
-4. Copy them into `wasm/`
+2. Build the image `usd-viewer-wasm:local` from the fork's own `Dockerfile` and
+   extract the four threaded `emHdBindings.*` files into `wasm/`
+3. Patch the fork's `build_usd.py` to drop `-pthread`
+   (see `scripts/patch-build-usd-single-thread.py`), build a second image
+   `usd-viewer-wasm:local-st`, and extract the three single-threaded files into
+   `wasm/st/` (the patch is reverted afterwards)
+
+To build only one variant, set `VARIANTS`:
+
+```bash
+VARIANTS=st npm run build:wasm        # only the single-threaded build
+VARIANTS=threaded npm run build:wasm  # only the threaded build
+```
 
 ### Local
 
@@ -50,11 +67,14 @@ npm run build:wasm:local
 ```
 
 This installs `emsdk` 4.0.8 into `.build-wasm/emsdk` (if not already present),
-clones the fork, then runs:
+clones the fork, then runs (per variant, with the single-threaded variant
+building from the patched tree into `.build-wasm/USD_emscripten_st`):
 
 ```bash
 python3 ./build_scripts/build_usd.py -v --build-target wasm --js-bindings .build-wasm/USD_emscripten
 ```
+
+The `VARIANTS` environment variable works the same as in Docker mode.
 
 ### Clean
 
@@ -97,10 +117,16 @@ After a successful run, `wasm/` will contain:
 
 | File | Purpose |
 |------|---------|
-| `emHdBindings.wasm` | Compiled WebAssembly binary |
+| `emHdBindings.wasm` | Compiled WebAssembly binary (threaded) |
 | `emHdBindings.js` | Emscripten JS glue, exposes `getUsdModule()` |
 | `emHdBindings.data` | Preloaded virtual filesystem data (`plugInfo.json` etc.) |
 | `emHdBindings.worker.js` | Pthread worker (generated because `-pthread` is in the flags) |
+| `st/emHdBindings.wasm` | Single-threaded WebAssembly binary (non-shared memory) |
+| `st/emHdBindings.js` | JS glue for the single-threaded build |
+| `st/emHdBindings.data` | Virtual filesystem data for the single-threaded build |
+
+The single-threaded build produces no `worker.js` because no pthread workers
+are ever spawned.
 
 The JS API is `window.getUsdModule(null, wasmDir)` — see `src/utils.ts` for the loader.
 The linker options that produce this shape are in the fork's
@@ -111,9 +137,9 @@ target_link_options(emHdBindings PRIVATE
   "SHELL:-sEXPORT_NAME=getUsdModule -sMODULARIZE=1 -lembind -sFORCE_FILESYSTEM=1")
 ```
 
-## About COOP/COEP Headers
+## About COOP/COEP Headers and the Single-Threaded Variant
 
-Because the upstream build uses `-pthread`, the resulting binary requires
+Because the upstream build uses `-pthread`, the threaded binary requires
 `SharedArrayBuffer` and therefore requires these response headers:
 
 ```json
@@ -121,21 +147,31 @@ Because the upstream build uses `-pthread`, the resulting binary requires
 "Cross-Origin-Opener-Policy": "same-origin"
 ```
 
-The WASM binary declares shared memory at the binary level (`flags=0x03` on its memory
-import), which is a hard browser constraint that cannot be bypassed in JavaScript.
+The threaded WASM binary declares shared memory at the binary level (`flags=0x03` on
+its memory import), which is a hard browser constraint that cannot be bypassed in
+JavaScript.
 
-To eliminate the header requirement entirely, the WASM would need to be recompiled
-without pthreads — a non-trivial effort because:
+The single-threaded variant in `wasm/st/` eliminates this requirement by recompiling
+without pthreads. `scripts/patch-build-usd-single-thread.py` applies the necessary
+changes to the fork's `build_usd.py` before that variant is built:
 
-1. `build_usd.py` hardcodes `-pthread` in its compile/link flags
-2. oneTBB (a mandatory USD dependency) forces `-pthread` on Emscripten targets
-   ([oneTBB #1280](https://github.com/uxlfoundation/oneTBB/issues/1280))
-3. Removing `-pthread` requires patching both `build_usd.py` and oneTBB's CMake
-4. USD's work system must be configured with `PXR_WORK_THREAD_LIMIT=1` at runtime
+1. Drops `-pthread` from the hardcoded compile/link flag constants and from
+   `GetWasmCompilerFlags()` (covers USD itself, MaterialX, Dawn, etc.)
+2. Passes `-DEMSCRIPTEN_WITHOUT_PTHREAD=ON` to oneTBB — supported since
+   oneTBB v2021.12.0, the exact version `build_usd.py` pins, so oneTBB no
+   longer re-injects `-pthread` on Emscripten targets
+   (resolves [oneTBB #1280](https://github.com/uxlfoundation/oneTBB/issues/1280))
+3. Stops the Dawn/webgpu Emscripten port patch from re-adding `-pthread`
 
-See the "Header Alternatives" section of [README.md](./README.md#why-are-these-headers-required)
-for the `coi-serviceworker` approach, which injects the headers client-side without
-requiring server configuration.
+Each substitution is verified to match exactly once, so the patch script fails
+loudly if the upstream branch changes rather than silently producing a
+still-threaded binary. Without `-pthread`, Emscripten provides a stub pthread
+API and the oneTBB scheduler runs everything inline on the main thread, so no
+runtime thread-limit configuration is needed.
+
+See [README.md](./README.md#alternative-injecting-headers-client-side)
+for the `coi-serviceworker` approach, which instead injects the headers
+client-side to get *threaded* performance without server configuration.
 
 ## Troubleshooting
 

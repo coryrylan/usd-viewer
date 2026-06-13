@@ -14,12 +14,27 @@ npm install usd-viewer
 
 ## Web Assembly Dependencies
 
-### Cross-Origin Isolation Headers
+### WASM Variants: Threaded and Single-Threaded
 
-The current WASM binary is compiled with Emscripten pthreads support, which requires
+The package ships two builds of the USD WASM runtime, and the component picks
+between them automatically at runtime:
+
+| Variant | Location | Requirements | Performance |
+|---------|----------|--------------|-------------|
+| Threaded (default) | `wasm/` | COOP/COEP headers (cross-origin isolation) | Multi-threaded USD parsing and Hydra rendering |
+| Single-threaded fallback | `wasm/st/` | **None** — works on any static host/CDN | Slower first render on large scenes |
+
+If the page is [cross-origin isolated](https://web.dev/articles/cross-origin-isolation-guide)
+(`SharedArrayBuffer` available), the threaded build is loaded. Otherwise the
+single-threaded build is loaded — no server configuration required. Just make
+sure both variants are copied to your host (see [Loading WASM Files](#loading-wasm-files)).
+
+### Cross-Origin Isolation Headers (optional, for best performance)
+
+The threaded build is compiled with Emscripten pthreads, which requires
 [SharedArrayBuffer](https://developer.mozilla.org/fr/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer).
-Browsers only expose `SharedArrayBuffer` on [cross-origin isolated](https://web.dev/articles/cross-origin-isolation-guide) pages,
-so the following response headers must be set by your server:
+Browsers only expose `SharedArrayBuffer` on cross-origin isolated pages, so to
+get the threaded build your server must set these response headers:
 
 ```json
 "Cross-Origin-Embedder-Policy": "require-corp"
@@ -30,22 +45,26 @@ so the following response headers must be set by your server:
 > restrictive and still enables `SharedArrayBuffer`. It allows cross-origin resources to load without
 > requiring a `Cross-Origin-Resource-Policy` header on each resource. Supported in Chrome 96+ and Firefox 119+.
 
-#### Why Are These Headers Required?
+Many static hosts support custom headers (Netlify and Cloudflare Pages via a
+`_headers` file, Vercel via `vercel.json`, Firebase via `firebase.json`).
+GitHub Pages and plain CDN buckets do not — those deployments use the
+single-threaded fallback automatically.
 
-The WASM binary (`emHdBindings.wasm`) declares shared memory (`flags=0x03`) at the WebAssembly level.
+#### Why Does the Threaded Build Need These Headers?
+
+Its WASM binary (`wasm/emHdBindings.wasm`) declares shared memory (`flags=0x03`) at the WebAssembly level.
 This is a hard constraint enforced by the browser engine — the binary cannot be instantiated without
 `SharedArrayBuffer`-backed memory. The threading support is used for USD scene parsing and Hydra
-rendering via Emscripten pthreads (Web Workers + shared memory).
+rendering via Emscripten pthreads (Web Workers + shared memory). The single-threaded
+build in `wasm/st/` is compiled without pthreads, so it has no such constraint.
+See [BUILDING.md](./BUILDING.md) for how both variants are produced.
 
-**This requirement cannot be removed by modifying JavaScript alone.** The WASM binary must be
-recompiled without pthreads to eliminate the header requirement entirely. See
-[BUILDING.md](./BUILDING.md) for details on producing a single-threaded build.
+#### Alternative: Injecting Headers Client-Side
 
-#### Alternatives to Server-Side Headers
-
-If you cannot configure server response headers (e.g., on static hosting without header support),
-you can use [coi-serviceworker](https://github.com/nicolestandifer3/coi-serviceworker) to inject
-the headers client-side via a Service Worker. Note that this requires a page reload on first visit.
+If you want threaded performance on a host without header support,
+[coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker) can inject
+the headers client-side via a Service Worker. Note that this requires a page
+reload on first visit and does not work in cross-origin iframes.
 
 ### Loading WASM Files
 
@@ -54,6 +73,9 @@ To load the Wasm dependencies in the browser copy them from the `node_modules` i
 ```
 cpy node_modules/usd-viewer/wasm/**/* dist/wasm
 ```
+
+The copy must preserve the directory structure so the single-threaded fallback
+remains available at `dist/wasm/st/`.
 
 To change the default path (`./wasm`) of the Wasm resources add the following meta tag to the document.
 
